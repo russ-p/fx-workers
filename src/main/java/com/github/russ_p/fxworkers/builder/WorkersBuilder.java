@@ -33,6 +33,10 @@ public class WorkersBuilder {
 		Runnable runHandler();
 	}
 
+	private enum Impl {
+		SERVICE, FUTURE, COMPLETABLE_FUTURE;
+	}
+
 	@SuppressWarnings("unchecked")
 	private static abstract class Builder<T, U extends Builder<T, ?, ?>, V extends FxWorker> {
 
@@ -42,7 +46,7 @@ public class WorkersBuilder {
 		protected Runnable onRun;
 		protected Runnable onComplete;
 
-		protected boolean notUseFxService = true;
+		protected Impl impl = Impl.FUTURE;
 
 		public U onSuccess(Consumer<T> c) {
 			onSuccess = c;
@@ -77,7 +81,12 @@ public class WorkersBuilder {
 		}
 
 		public U service() {
-			this.notUseFxService = false;
+			this.impl = Impl.SERVICE;
+			return (U) this;
+		}
+
+		public U completableFuture() {
+			this.impl = Impl.COMPLETABLE_FUTURE;
 			return (U) this;
 		}
 
@@ -126,9 +135,10 @@ public class WorkersBuilder {
 
 		@Override
 		protected UniArgWorker<T> doBuild() {
-			if (notUseFxService)
-				return new CompletableFutureWorkerImpl<T, Void, Void, Void, Void>((arg) -> onSuccessRun.run(), onError, onRun,
-						onComplete) {
+			switch (impl) {
+			case SERVICE:
+				return new FxServiceWorkerImpl<T, Void, Void, Void, Void>((arg) -> onSuccessRun.run(), onError,
+						onRun, onComplete) {
 
 					@Override
 					protected Void exec(VarArg<T, Void, Void, Void> arg) {
@@ -136,9 +146,9 @@ public class WorkersBuilder {
 						return null;
 					}
 				};
-			else
-				return new FxServiceWorkerImpl<T, Void, Void, Void, Void>((arg) -> onSuccessRun.run(), onError, onRun,
-						onComplete) {
+			case FUTURE:
+				return new FutureWorkerImpl<T, Void, Void, Void, Void>((arg) -> onSuccessRun.run(), onError,
+						onRun, onComplete) {
 
 					@Override
 					protected Void exec(VarArg<T, Void, Void, Void> arg) {
@@ -146,6 +156,18 @@ public class WorkersBuilder {
 						return null;
 					}
 				};
+			case COMPLETABLE_FUTURE:
+				return new CompletableFutureWorkerImpl<T, Void, Void, Void, Void>((arg) -> onSuccessRun.run(), onError,
+						onRun, onComplete) {
+
+					@Override
+					protected Void exec(VarArg<T, Void, Void, Void> arg) {
+						consum.accept(arg.getA());
+						return null;
+					}
+				};
+			}
+			throw new UnsupportedOperationException();
 		}
 
 	}
@@ -161,15 +183,40 @@ public class WorkersBuilder {
 
 		@Override
 		protected BiArgWorker<T, U> doBuild() {
-			return new FxServiceWorkerImpl<T, U, Void, Void, Void>((arg) -> onSuccessRun.run(), onError, onRun,
-					onComplete) {
+			switch (impl) {
+			case SERVICE:
+				return new FxServiceWorkerImpl<T, U, Void, Void, Void>((arg) -> onSuccessRun.run(), onError, onRun,
+						onComplete) {
 
-				@Override
-				protected Void exec(VarArg<T, U, Void, Void> arg) {
-					consum.accept(arg.getA(), arg.getB());
-					return null;
-				}
-			};
+					@Override
+					protected Void exec(VarArg<T, U, Void, Void> arg) {
+						consum.accept(arg.getA(), arg.getB());
+						return null;
+					}
+				};
+			case FUTURE:
+				return new FutureWorkerImpl<T, U, Void, Void, Void>((arg) -> onSuccessRun.run(), onError, onRun,
+						onComplete) {
+
+					@Override
+					protected Void exec(VarArg<T, U, Void, Void> arg) {
+						consum.accept(arg.getA(), arg.getB());
+						return null;
+					}
+				};
+			case COMPLETABLE_FUTURE:
+				return new CompletableFutureWorkerImpl<T, U, Void, Void, Void>((arg) -> onSuccessRun.run(), onError,
+						onRun,
+						onComplete) {
+
+					@Override
+					protected Void exec(VarArg<T, U, Void, Void> arg) {
+						consum.accept(arg.getA(), arg.getB());
+						return null;
+					}
+				};
+			}
+			throw new UnsupportedOperationException();
 		}
 
 	}
@@ -184,14 +231,36 @@ public class WorkersBuilder {
 
 		@Override
 		protected UniArgWorker<T> doBuild() {
-			return new FxServiceWorkerImpl<T, Void, Void, Void, R>(onSuccess, onError, onRun, onComplete) {
+			switch (impl) {
+			case SERVICE:
+				return new FxServiceWorkerImpl<T, Void, Void, Void, R>(onSuccess, onError, onRun, onComplete) {
 
-				@Override
-				protected R exec(VarArg<T, Void, Void, Void> arg) {
-					return func.apply(arg.getA());
-				}
+					@Override
+					protected R exec(VarArg<T, Void, Void, Void> arg) {
+						return func.apply(arg.getA());
+					}
 
-			};
+				};
+			case FUTURE:
+				return new FutureWorkerImpl<T, Void, Void, Void, R>(onSuccess, onError, onRun, onComplete) {
+
+					@Override
+					protected R exec(VarArg<T, Void, Void, Void> arg) {
+						return func.apply(arg.getA());
+					}
+
+				};
+			case COMPLETABLE_FUTURE:
+				return new CompletableFutureWorkerImpl<T, Void, Void, Void, R>(onSuccess, onError, onRun, onComplete) {
+
+					@Override
+					protected R exec(VarArg<T, Void, Void, Void> arg) {
+						return func.apply(arg.getA());
+					}
+
+				};
+			}
+			throw new UnsupportedOperationException();
 		}
 
 	}
@@ -207,14 +276,36 @@ public class WorkersBuilder {
 
 		@Override
 		protected BiArgWorker<T, U> doBuild() {
-			return new FxServiceWorkerImpl<T, U, Void, Void, R>(onSuccess, onError, onRun, onComplete) {
+			switch (impl) {
+			case SERVICE:
+				return new FxServiceWorkerImpl<T, U, Void, Void, R>(onSuccess, onError, onRun, onComplete) {
 
-				@Override
-				protected R exec(VarArg<T, U, Void, Void> arg) {
-					return func.apply(arg.getA(), arg.getB());
-				}
+					@Override
+					protected R exec(VarArg<T, U, Void, Void> arg) {
+						return func.apply(arg.getA(), arg.getB());
+					}
 
-			};
+				};
+			case FUTURE:
+				return new FutureWorkerImpl<T, U, Void, Void, R>(onSuccess, onError, onRun, onComplete) {
+
+					@Override
+					protected R exec(VarArg<T, U, Void, Void> arg) {
+						return func.apply(arg.getA(), arg.getB());
+					}
+
+				};
+			case COMPLETABLE_FUTURE:
+				return new CompletableFutureWorkerImpl<T, U, Void, Void, R>(onSuccess, onError, onRun, onComplete) {
+
+					@Override
+					protected R exec(VarArg<T, U, Void, Void> arg) {
+						return func.apply(arg.getA(), arg.getB());
+					}
+
+				};
+			}
+			throw new UnsupportedOperationException();
 		}
 
 	}
@@ -229,14 +320,37 @@ public class WorkersBuilder {
 
 		@Override
 		protected ZeroArgWorker doBuild() {
-			return new FxServiceWorkerImpl<Void, Void, Void, Void, T>(onSuccess, onError, onRun, onComplete) {
+			switch (impl) {
+			case SERVICE:
+				return new FxServiceWorkerImpl<Void, Void, Void, Void, T>(onSuccess, onError, onRun, onComplete) {
 
-				@Override
-				protected T exec(VarArg<Void, Void, Void, Void> arg) {
-					return func.get();
-				}
+					@Override
+					protected T exec(VarArg<Void, Void, Void, Void> arg) {
+						return func.get();
+					}
 
-			};
+				};
+			case FUTURE:
+				return new FutureWorkerImpl<Void, Void, Void, Void, T>(onSuccess, onError, onRun, onComplete) {
+
+					@Override
+					protected T exec(VarArg<Void, Void, Void, Void> arg) {
+						return func.get();
+					}
+
+				};
+			case COMPLETABLE_FUTURE:
+				return new CompletableFutureWorkerImpl<Void, Void, Void, Void, T>(onSuccess, onError, onRun,
+						onComplete) {
+
+					@Override
+					protected T exec(VarArg<Void, Void, Void, Void> arg) {
+						return func.get();
+					}
+
+				};
+			}
+			throw new UnsupportedOperationException();
 		}
 
 	}
