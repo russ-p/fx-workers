@@ -1,6 +1,7 @@
 package com.github.russ_p.fxworkers.builder;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -49,7 +50,11 @@ public class WorkersBuilder {
 		protected Impl impl = Impl.FUTURE;
 
 		public U onSuccess(Consumer<T> c) {
-			onSuccess = c;
+			if (onSuccess == null) {
+				onSuccess = c;
+			} else {
+				onSuccess = onSuccess.andThen(c);
+			}
 			return (U) this;
 		}
 
@@ -59,24 +64,44 @@ public class WorkersBuilder {
 		}
 
 		public U onError(Consumer<Throwable> c) {
-			onError = c;
+			if (onError == null) {
+				onError = c;
+			} else {
+				onError = onError.andThen(c);
+			}
 			return (U) this;
 		}
 
 		public U onRun(Runnable c) {
-			onRun = c;
+			if (onRun == null) {
+				onRun = c;
+			} else {
+				Runnable r = onRun;
+				onRun = () -> {
+					r.run();
+					c.run();
+				};
+			}
 			return (U) this;
 		}
 
 		public U onComplete(Runnable c) {
-			onComplete = c;
+			if (onComplete == null) {
+				onComplete = c;
+			} else {
+				Runnable r = onComplete;
+				onComplete = () -> {
+					r.run();
+					c.run();
+				};
+			}
 			return (U) this;
 		}
 
 		public U customize(WorkersBuilderCustomizer customizer) {
-			onComplete = customizer.completeHandler();
-			onRun = customizer.runHandler();
-			onError = customizer.errorHandler();
+			Optional.ofNullable(customizer.runHandler()).ifPresent(this::onRun);
+			Optional.ofNullable(customizer.errorHandler()).ifPresent(this::onError);
+			Optional.ofNullable(customizer.completeHandler()).ifPresent(this::onComplete);
 			return (U) this;
 		}
 
