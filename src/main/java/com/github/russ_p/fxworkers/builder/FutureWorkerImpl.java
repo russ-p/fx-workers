@@ -12,6 +12,8 @@ import javafx.application.Platform;
 abstract class FutureWorkerImpl<A, B, C, D, R> extends AbstractVarArgWorkerImpl<A, B, C, D, R> {
 
 	public static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(8);
+	
+	private Task task;
 
 	public FutureWorkerImpl(Consumer<R> onSuccess, Consumer<Throwable> onError, Runnable onRun, Runnable onComplete) {
 		super(onSuccess, onError, onRun, onComplete);
@@ -25,8 +27,15 @@ abstract class FutureWorkerImpl<A, B, C, D, R> extends AbstractVarArgWorkerImpl<
 			Platform.runLater(onRun);
 		}
 
+		if (task != null && !task.isDone()) {
+			task.cancel(true);
+			task = null;
+		}
+
+		task = new Task(() -> exec(arg));
 		(executor == null ? EXECUTOR : executor)
-				.execute(new Task(() -> exec(arg)));
+				.execute(task);
+
 	}
 
 	protected abstract R exec(VarArg<A, B, C, D> arg);

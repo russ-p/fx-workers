@@ -1,5 +1,6 @@
 package com.github.russ_p.fxworkers.builder;
 
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -22,11 +23,18 @@ public class ImplementationsTest extends ApplicationTest {
 	private AtomicInteger counterSuccess = new AtomicInteger(0);
 	private AtomicInteger counterError = new AtomicInteger(0);
 	private AtomicInteger counterComplete = new AtomicInteger(0);
+	private AtomicInteger counterCancel = new AtomicInteger(0);
 
 	private Executor e = Executors.newSingleThreadExecutor();
 
 	private int doSmt() {
-		return counterDo.incrementAndGet();
+		int res = counterDo.incrementAndGet();
+		try {
+			Thread.sleep(10);
+		} catch (InterruptedException | CancellationException e ) {
+			counterCancel.getAndIncrement();
+		}
+		return res;
 	}
 
 	private void handleRun() {
@@ -51,6 +59,7 @@ public class ImplementationsTest extends ApplicationTest {
 		System.out.println(" SUCCESS: " + counterSuccess);
 		System.out.println("   ERROR: " + counterError);
 		System.out.println("COMPLETE: " + counterComplete);
+		System.out.println("  CANCEL: " + counterCancel);
 	}
 
 	@Before
@@ -60,6 +69,7 @@ public class ImplementationsTest extends ApplicationTest {
 		counterSuccess.set(0);
 		counterError.set(0);
 		counterComplete.set(0);
+		counterCancel.set(0);
 
 		System.gc();
 	}
@@ -91,6 +101,8 @@ public class ImplementationsTest extends ApplicationTest {
 		i--;
 		while (counterComplete.get() < i) {
 		}
+		
+		System.out.println("ImplementationsTest.testCompletableFutureWorker()");
 	}
 
 	@Test
@@ -116,6 +128,8 @@ public class ImplementationsTest extends ApplicationTest {
 		i--;
 		while (counterComplete.get() < i) {
 		}
+		
+		System.out.println("ImplementationsTest.testFutureWorker()");
 	}
 
 	@Test
@@ -141,6 +155,8 @@ public class ImplementationsTest extends ApplicationTest {
 		i--;
 		while (counterComplete.get() < i) {
 		}
+		
+		System.out.println("ImplementationsTest.testFxServiceWorker()");
 	}
 
 }
